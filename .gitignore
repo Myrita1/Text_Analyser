@@ -1,0 +1,14 @@
+# Step 3: Write the updated .gitignore file
+gitignore = """
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+env/
+venv/
+*.DS_Store
+*.mp3
+"""
+
+with open("/mnt/data/ILR_App/.gitignore", "w") as f:
+    f.write(gitignore.strip())
