@@ -1,63 +1,84 @@
 import streamlit as st
-from transformers import MarianMTModel, MarianTokenizer, BertForMaskedLM, BertTokenizer, pipeline
+from googletrans import Translator  # Google Translate API
+from transformers import pipeline    # Hugging Face model pipeline
+import spacy
+import nltk
+from nltk.tokenize import sent_tokenize
 
-# Initialize MarianMT for translation and BERT for summarization
-model_name_translation = 'Helsinki-NLP/opus-mt-ROMANCE-en'
-tokenizer_translation = MarianTokenizer.from_pretrained(model_name_translation)
-model_translation = MarianMTModel.from_pretrained(model_name_translation)
+# Initialize spaCy for language processing (used for ILR level assessment)
+nlp = spacy.load("en_core_web_sm")
 
-summarizer = pipeline("summarization", model="facebook/bart-large-cnn")  # BART for extractive summarization
+# Initialize the Hugging Face summarization pipeline
+summarizer = pipeline("summarization")
 
-# Function to translate text using MarianMT (more accurate translation)
-def translate_text(text):
-    translated = tokenizer_translation.encode(text, return_tensors="pt")
-    output = model_translation.generate(translated, max_length=500, num_beams=4, early_stopping=True)
-    translation = tokenizer_translation.decode(output[0], skip_special_tokens=True)
-    return translation
+# Google Translate API
+translator = Translator()
 
-# Function to summarize the main idea and provide detailed secondary ideas
-def summarize_text(text):
-    summary = summarizer(text, max_length=150, min_length=50, do_sample=False)
-    main_idea = summary[0]['summary_text']
+# Function to translate text into English
+def translate_text(input_text, target_language='en'):
+    """Translate text to the target language (default: English)."""
+    translation = translator.translate(input_text, dest=target_language)
+    return translation.text
+
+# Function to summarize the main idea of the text
+def summarize_text(input_text):
+    """Summarize the main idea of the text."""
+    summary = summarizer(input_text, max_length=150, min_length=50, do_sample=False)
+    return summary[0]['summary_text']
+
+# Function to extract secondary ideas from the text
+def extract_secondary_ideas(input_text):
+    """Extract secondary ideas from the text."""
+    sentences = sent_tokenize(input_text)
+    ideas = sentences[:5]  # Limit to first 5 ideas for simplicity
+    return ideas
+
+# Function to assess ILR level based on the complexity of the text
+def assess_ilr_level(text):
+    """Assess ILR level based on the complexity of the text."""
+    doc = nlp(text)
     
-    # For detailed secondary ideas, break down the content into bullet points
-    secondary_ideas = text.split('. ')
-    secondary_ideas = [idea.strip() for idea in secondary_ideas if len(idea.strip()) > 0]
-    
-    return main_idea, secondary_ideas
+    # A basic rule-based approach to categorize the text length into ILR levels
+    if len(doc) < 100:
+        return 'Level 1: Basic comprehension'
+    elif len(doc) < 200:
+        return 'Level 2: Basic understanding of simple materials'
+    elif len(doc) < 500:
+        return 'Level 3: Adequate comprehension of general content'
+    elif len(doc) < 800:
+        return 'Level 4: Advanced comprehension of nuanced content'
+    else:
+        return 'Level 5: Mastery in understanding complex texts'
 
-# ILR Reading Levels (Simplified for this app)
-ILR_levels = {
-    0: "Unable to understand the written language.",
-    1: "Able to understand simple, written language.",
-    2: "Able to understand straightforward written material.",
-    3: "Able to understand formal and informal written language.",
-    4: "Able to understand precise written language with considerable accuracy.",
-    5: "Mastery of the language, able to understand almost any written text."
-}
+# Streamlit interface
+st.title('ILR Multilingual Text Analyzer')
 
-# Streamlit UI
-st.title("ILR Multilingual Text Analyzer")
-
-text_input = st.text_area("Enter Text (any language)", height=200)
+# Input text
+text_input = st.text_area('Enter text for analysis', '')
 
 if text_input:
-    with st.spinner('Processing your text...'):
-        # Step 1: Translate text to English
-        translated_text = translate_text(text_input)
-        
-        # Step 2: Summarize the main idea and secondary ideas
-        main_idea, secondary_ideas = summarize_text(translated_text)
-        
-        # Step 3: Display results
-        st.subheader("Translated Text:")
-        st.write(translated_text)
+    # Translate the text to English
+    translated_text = translate_text(text_input)
 
-        st.subheader("Main Idea Summary:")
-        st.write(main_idea)
+    # Summarize the main idea
+    main_idea = summarize_text(translated_text)
 
-        st.subheader("Secondary Ideas:")
-        st.write("\n".join([f"• {idea}" for idea in secondary_ideas]))
+    # Extract secondary ideas
+    secondary_ideas = extract_secondary_ideas(translated_text)
 
-        st.subheader("ILR Reading Level Estimate:")
-        st.write("Based on the text, this could likely correspond to Level 3+ of the ILR scale.")
+    # Assess the ILR level of the text
+    ilr_level = assess_ilr_level(translated_text)
+
+    # Display results
+    st.subheader('Translated Text:')
+    st.write(translated_text)
+
+    st.subheader('Main Idea:')
+    st.write(main_idea)
+
+    st.subheader('Secondary Ideas:')
+    for idea in secondary_ideas:
+        st.write(f"- {idea}")
+
+    st.subheader('ILR Level Assessment:')
+    st.write(ilr_level)
