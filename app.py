@@ -1,15 +1,19 @@
 import streamlit as st
-from googletrans import Translator
-from transformers import pipeline
+from transformers import MarianMTModel, MarianTokenizer, BertForMaskedLM, BertTokenizer, pipeline
 
-# Initialize the translation and summarization models
-translator = Translator()
-summarizer = pipeline("summarization")
+# Initialize MarianMT for translation and BERT for summarization
+model_name_translation = 'Helsinki-NLP/opus-mt-ROMANCE-en'
+tokenizer_translation = MarianTokenizer.from_pretrained(model_name_translation)
+model_translation = MarianMTModel.from_pretrained(model_name_translation)
 
-# Function to translate text to English
+summarizer = pipeline("summarization", model="facebook/bart-large-cnn")  # BART for extractive summarization
+
+# Function to translate text using MarianMT (more accurate translation)
 def translate_text(text):
-    translated = translator.translate(text, src='auto', dest='en')
-    return translated.text
+    translated = tokenizer_translation.encode(text, return_tensors="pt")
+    output = model_translation.generate(translated, max_length=500, num_beams=4, early_stopping=True)
+    translation = tokenizer_translation.decode(output[0], skip_special_tokens=True)
+    return translation
 
 # Function to summarize the main idea and provide detailed secondary ideas
 def summarize_text(text):
@@ -24,12 +28,12 @@ def summarize_text(text):
 
 # ILR Reading Levels (Simplified for this app)
 ILR_levels = {
-    0: "Unable to understand the written language in almost any context.",
-    1: "Able to understand simple written language dealing with basic information.",
-    2: "Able to understand straightforward written material on everyday topics.",
-    3: "Able to understand formal and informal written language with accuracy on general topics.",
+    0: "Unable to understand the written language.",
+    1: "Able to understand simple, written language.",
+    2: "Able to understand straightforward written material.",
+    3: "Able to understand formal and informal written language.",
     4: "Able to understand precise written language with considerable accuracy.",
-    5: "Able to understand almost any written text with mastery."
+    5: "Mastery of the language, able to understand almost any written text."
 }
 
 # Streamlit UI
